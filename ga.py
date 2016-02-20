@@ -1,9 +1,11 @@
 # TODO May only need sqrt from math and uniform from random
 from math import sqrt
 from random import choice, randint, sample, uniform
+from sys import stdout
 from time import time
 
 # POP_LIMIT / TOURNAMENT_LIMIT must be an even number for crossover!
+GENS = 5000
 POP_LIMIT = 200
 TOURNAMENT_LIMIT = 4
 BOUNDS = 1000.0
@@ -138,7 +140,7 @@ def top_up(population):
     while(len(population) < POP_LIMIT):
         population.append(generate_candidate())
 
-# Writes report on the given population.
+# Writes to the report file for the given population updates the stdout.
 def reporter(population, gen):
     best = population[1]
     worst = best
@@ -157,16 +159,13 @@ def reporter(population, gen):
     f.write(str(average) + ', ')
     f.write(str(best['chromosomes']) + '\n')
     f.close()
-    print('Generation: ', i)
-    print('Best: ', best['fitness'])
-    print('Worst:', worst['fitness'])
-    print('Average: ', average)
-    print(best['chromosomes'])
+    stdout.write("Generation: %d, Best: %-10.20f \r" % (i, best['fitness']) )
+    stdout.flush()
 
-
+# Create initial population
 population = generate_population()
-
-for i in range(0,10000):
+# Loops through the selection, crossover and mutation phases for given number of genereations.
+for i in range(0,GENS):
     population = tournament_selection(population)
     population = crossover(population)
     population = mutation(population)
