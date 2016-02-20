@@ -1,4 +1,3 @@
-# TODO May only need sqrt from math and uniform from random
 from math import sqrt
 from random import choice, randint, sample, uniform
 from sys import stdout
