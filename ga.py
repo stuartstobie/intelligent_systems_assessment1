@@ -5,8 +5,8 @@ from time import time
 
 # POP_LIMIT / TOURNAMENT_LIMIT must be an even number for crossover!
 GENS = 5000
-POP_LIMIT = 200
-TOURNAMENT_LIMIT = 4
+POP_LIMIT = 120
+TOURNAMENT_LIMIT = 6 # MUST be 4 or higher
 BOUNDS = 1000.0
 INITIAL_MUTATION_FACTOR = 0.1
 SECONDARY_MUTATION_CHANCE = 10
@@ -78,33 +78,47 @@ def generate_population():
         population.append(generate_candidate())
     return population
 
-# Randomly matches up a tournament and selects the winner. Returns a reduced population.
+# Randomly matches up a tournament and selects the winner. Returns a reduced population (0.25).
 def tournament_selection(population):
     new_population = []
-    while(len(population) > 0):
-        tournament = sample(population, TOURNAMENT_LIMIT)
+    round_1 = population
+    round_2 = []
+    # Round 1 selects only the fittest. All combatants compete at least once.
+    while(len(round_1) > 0):
+        tournament = sample(round_1, TOURNAMENT_LIMIT)
         winner = {'fitness': 0}
         for combatant in tournament:
             if combatant['fitness'] > winner['fitness']:
                 winner = combatant
-            population.remove(combatant)
+            round_2.append(combatant)
+            round_1.remove(combatant)
+        new_population.append(winner)
+    # Round 2 fills remaining slots with winners from randomly selected bouts (only used if TOURNAMENT_LIMIT > 4)
+    while(len(new_population) < POP_LIMIT/4):
+        tournament = sample(round_2, TOURNAMENT_LIMIT)
+        winner = {'fitness': 0}
+        for combatant in tournament:
+            if combatant['fitness'] > winner['fitness']:
+                winner = combatant
         new_population.append(winner)
     return new_population
 
-# Combines the chromosomes of two parents. Returns a new population with parents and offspring.
-# This doubles the size of the given population.
+# Combines the chromosomes of two parents in one of two ways. Returns a new population of offspring.
 def crossover(population):
-    new_population = []
-    next_gen = []
-    while(len(population) > 0):
-        parent_1 = population.pop(population.index(choice(population)))
-        parent_2 = population.pop(population.index(choice(population)))
-        child_1_chromosomes = parent_1['chromosomes'][:3] + parent_2['chromosomes'][-3:]
-        child_2_chromosomes = parent_1['chromosomes'][-3:] + parent_2['chromosomes'][:3]
-        next_gen = next_gen + [create_candidate(child_1_chromosomes), create_candidate(child_2_chromosomes)]
-        new_population = new_population + [parent_1, parent_2]
-    new_population = new_population + next_gen
-    return new_population
+    offspring = []
+    for i in range(len(population)/2):
+        parent_1 = population[2*i]
+        parent_2 = population[2*i+1]
+        child_1_chromosomes = []
+        child_2_chromosomes = []
+        if randint(0,1) == 0:
+            child_1_chromosomes = parent_1['chromosomes'][:3] + parent_2['chromosomes'][-3:]
+            child_2_chromosomes = parent_2['chromosomes'][:3] + parent_1['chromosomes'][-3:]
+        else:
+            child_1_chromosomes = [parent_1['chromosomes'][0], parent_2['chromosomes'][1],parent_1['chromosomes'][2], parent_2['chromosomes'][3], parent_1['chromosomes'][4], parent_2['chromosomes'][5]]
+            child_2_chromosomes = [parent_2['chromosomes'][0], parent_1['chromosomes'][1], parent_2['chromosomes'][2], parent_1['chromosomes'][3], parent_2['chromosomes'][4], parent_1['chromosomes'][5]]
+        offspring = offspring + [create_candidate(child_1_chromosomes), create_candidate(child_2_chromosomes)]
+    return offspring
 
 # Randomely return 1 or -1. Used to determine whether mutation increases or decreases values.
 def shrink_or_grow():
@@ -112,8 +126,7 @@ def shrink_or_grow():
         return -1
     return 1
 
-# Mutates at least one chromosome in each candidate. Returns a population of original and
-# mutated candidates. Doubles the size of the given population.
+# Mutates at least one chromosome in each candidate. Returns a population of mutated candidates.
 def mutation(population):
     mutants = []
     for candidate in population:
@@ -129,15 +142,7 @@ def mutation(population):
             rand_index = randint(0,5)
             mutant_chromosomes[rand_index] = uniform(-BOUNDS, BOUNDS)
         mutants.append(create_candidate(mutant_chromosomes))
-    population = population + mutants
-    return population
-
-# brings the population back up to the limit. This is only used if tournament size > 4.
-def top_up(population):
-    # if len(population) < POP_LIMIT:
-    #     print('Topping up: ', POP_LIMIT - len(population))
-    while(len(population) < POP_LIMIT):
-        population.append(generate_candidate())
+    return mutants
 
 # Writes to the report file for the given population updates the stdout.
 def reporter(population, gen):
@@ -164,11 +169,10 @@ def reporter(population, gen):
 # Create initial population
 population = generate_population()
 # Loops through the selection, crossover and mutation phases for given number of genereations.
-for i in range(0,GENS):
+for i in range(GENS):
     population = tournament_selection(population)
-    population = crossover(population)
-    population = mutation(population)
-    top_up(population)
+    population = population + crossover(population)
+    population = population + mutation(population)
     reporter(population, i)
 
 # custom_gen = [-0.00318,5000,5,-62,1,-0.001]
