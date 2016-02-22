@@ -3,19 +3,21 @@ from random import choice, randint, sample, uniform
 from sys import stdout
 from time import time
 
-# POP_LIMIT / TOURNAMENT_LIMIT must be an even number for crossover!
+# POP_LIMIT / TOURNAMENT_LIMIT must be an integer!
 GENS = 5000
 POP_LIMIT = 200
 TOURNAMENT_LIMIT = 4
-BOUNDS = 1000.0
-INITIAL_MUTATION_FACTOR = 0.1
-SECONDARY_MUTATION_CHANCE = 10
-SECONDARY_MUTATION_FACTOR = 0.8
-CRAZY_MUTATION_CHANCE = 5
+BOUNDS = 5000.0
+INITIAL_MUTATION_CHANCE = 10
+INITIAL_MUTATION_FACTOR = 0.05
+SECONDARY_MUTATION_CHANCE = 5
+SECONDARY_MUTATION_FACTOR = 0.5
+CRAZY_MUTATION_CHANCE = 1
 
 #  Create report file
 timestamp = time()
 f = open(str(timestamp) + '.csv','w')
+f.write('Experimental\n')
 f.write('POP_LIMIT: ' + str(POP_LIMIT) + '\n')
 f.write('TOURNAMENT_LIMIT: ' + str(TOURNAMENT_LIMIT) + '\n')
 f.write('BOUNDS: ' + str(BOUNDS) + '\n')
@@ -78,33 +80,48 @@ def generate_population():
         population.append(generate_candidate())
     return population
 
-# Randomly matches up a tournament and selects the winner. Returns a reduced population.
+# Randomly matches up a tournament and selects the winner. Returns a halved population.
 def tournament_selection(population):
     new_population = []
-    while(len(population) > 0):
-        tournament = sample(population, TOURNAMENT_LIMIT)
+    round_1 = population
+    round_2 = []
+    # Round 1 selects only the fittest.
+    while(len(round_1) > 0):
+        tournament = sample(round_1, TOURNAMENT_LIMIT)
         winner = {'fitness': 0}
         for combatant in tournament:
             if combatant['fitness'] > winner['fitness']:
                 winner = combatant
-            population.remove(combatant)
+            round_2.append(combatant)
+            round_1.remove(combatant)
+        new_population.append(winner)
+    # Round 2 fills remaining slots with winners from randomly selected bouts
+    while(len(new_population) < POP_LIMIT/2):
+        tournament = sample(round_2, TOURNAMENT_LIMIT)
+        winner = {'fitness': 0}
+        for combatant in tournament:
+            if combatant['fitness'] > winner['fitness']:
+                winner = combatant
         new_population.append(winner)
     return new_population
 
 # Combines the chromosomes of two parents. Returns a new population with parents and offspring.
-# This doubles the size of the given population.
+# Doubles the current population.
 def crossover(population):
-    new_population = []
     next_gen = []
-    while(len(population) > 0):
-        parent_1 = population.pop(population.index(choice(population)))
-        parent_2 = population.pop(population.index(choice(population)))
-        child_1_chromosomes = parent_1['chromosomes'][:3] + parent_2['chromosomes'][-3:]
-        child_2_chromosomes = parent_1['chromosomes'][-3:] + parent_2['chromosomes'][:3]
+    for i in range(len(population)/2):
+        parent_1 = population[2*i]
+        parent_2 = population[2*i+1]
+        child_1_chromosomes = []
+        child_2_chromosomes = []
+        if randint(0,1) == 0:
+            child_1_chromosomes = parent_1['chromosomes'][:3] + parent_2['chromosomes'][-3:]
+            child_2_chromosomes = parent_2['chromosomes'][:3] + parent_1['chromosomes'][-3:]
+        else:
+            child_1_chromosomes = [parent_1['chromosomes'][0], parent_2['chromosomes'][1],parent_1['chromosomes'][2], parent_2['chromosomes'][3], parent_1['chromosomes'][4], parent_2['chromosomes'][5]]
+            child_2_chromosomes = [parent_2['chromosomes'][0], parent_1['chromosomes'][1], parent_2['chromosomes'][2], parent_1['chromosomes'][3], parent_2['chromosomes'][4], parent_1['chromosomes'][5]]
         next_gen = next_gen + [create_candidate(child_1_chromosomes), create_candidate(child_2_chromosomes)]
-        new_population = new_population + [parent_1, parent_2]
-    new_population = new_population + next_gen
-    return new_population
+    return next_gen
 
 # Randomely return 1 or -1. Used to determine whether mutation increases or decreases values.
 def shrink_or_grow():
@@ -117,27 +134,26 @@ def shrink_or_grow():
 def mutation(population):
     mutants = []
     for candidate in population:
-        mutant_chromosomes = candidate['chromosomes']
-        rand_index = randint(0,5)
-        mutate_amount = shrink_or_grow() * INITIAL_MUTATION_FACTOR * mutant_chromosomes[rand_index]
-        mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + mutate_amount
+        if randint(1, 100) <= INITIAL_MUTATION_CHANCE:
+            rand_index = randint(0,5)
+            mutate_amount = shrink_or_grow() * INITIAL_MUTATION_FACTOR * candidate['chromosomes'][rand_index]
+            candidate['chromosomes'][rand_index] = candidate['chromosomes'][rand_index] + mutate_amount
         if randint(1, 100) <= SECONDARY_MUTATION_CHANCE:
             rand_index = randint(0,5)
-            mutate_amount = shrink_or_grow() * SECONDARY_MUTATION_FACTOR * mutant_chromosomes[rand_index]
-            mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + mutate_amount
+            mutate_amount = shrink_or_grow() * SECONDARY_MUTATION_FACTOR * candidate['chromosomes'][rand_index]
+            candidate['chromosomes'][rand_index] = candidate['chromosomes'][rand_index] + mutate_amount
         if randint(1, 100) <= CRAZY_MUTATION_CHANCE:
             rand_index = randint(0,5)
-            mutant_chromosomes[rand_index] = uniform(-BOUNDS, BOUNDS)
-        mutants.append(create_candidate(mutant_chromosomes))
-    population = population + mutants
-    return population
+            candidate['chromosomes'][rand_index] = uniform(-BOUNDS, BOUNDS)
+        mutants.append(candidate)
+    return mutants
 
-# brings the population back up to the limit. This is only used if tournament size > 4.
-def top_up(population):
-    # if len(population) < POP_LIMIT:
-    #     print('Topping up: ', POP_LIMIT - len(population))
-    while(len(population) < POP_LIMIT):
-        population.append(generate_candidate())
+# Performs crossover to produce offspring and applies mutation to those offspring,
+# Returns a new population double the size of the old one.
+def breed(population):
+    new_population = population + mutation(crossover(population))
+    return new_population
+
 
 # Writes to the report file for the given population updates the stdout.
 def reporter(population, gen):
@@ -164,11 +180,9 @@ def reporter(population, gen):
 # Create initial population
 population = generate_population()
 # Loops through the selection, crossover and mutation phases for given number of genereations.
-for i in range(0,GENS):
+for i in range(GENS):
     population = tournament_selection(population)
-    population = crossover(population)
-    population = mutation(population)
-    top_up(population)
+    population = breed(population)
     reporter(population, i)
 
 # custom_gen = [-0.00318,5000,5,-62,1,-0.001]
