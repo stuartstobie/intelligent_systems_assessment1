@@ -4,13 +4,13 @@ from sys import stdout
 from time import time
 
 # POP_LIMIT / TOURNAMENT_LIMIT must be an even number for crossover!
-GENS = 5000
+GENS = 10000
 POP_LIMIT = 120
 TOURNAMENT_LIMIT = 4 # MUST be 4 or higher
-BOUNDS = 1000.0
+BOUNDS = 5000.0
 INITIAL_MUTATION_FACTOR = 0.05
 SECONDARY_MUTATION_CHANCE = 10
-SECONDARY_MUTATION_FACTOR = 0.8
+SECONDARY_MUTATION_FACTOR = 1.2
 CRAZY_MUTATION_CHANCE = 5
 
 #  Create report file
@@ -39,12 +39,18 @@ Y_DATA = data[1::2] # odd values are y coordinates
 # Returns f(x) values for a given candidate. Used in fitness calculation.
 def calculate_y_values(candidate):
     y_values = []
-    for index, x in enumerate(X_DATA):
-        y = 0
-        for power, param in enumerate(candidate['chromosomes']):
-            y += param*(x**power)
+    for x in X_DATA:
+        y = horner(x, candidate['chromosomes'])
         y_values.append(y)
     return y_values
+
+# A function that implements the Horner Scheme for evaluating a
+# polynomial of coefficients *polynomial in x.
+def horner(x, polynomial):
+    result = 0
+    for coefficient in polynomial:
+        result = result * x + coefficient
+    return result
 
 # Returns the fitness for a given candidate, higher is better.
 # Compares calculated f(x) values to the actual ones.
@@ -59,10 +65,10 @@ def calculate_fitness(candidate):
 
 # Returns a single candidate.
 def generate_candidate():
-    candidate = {'chromosomes': [], 'fitness': 0}
+    chromosomes = []
     for i in range(6):
-        candidate['chromosomes'].append(uniform(-BOUNDS, BOUNDS))
-    candidate['fitness'] = calculate_fitness(candidate)
+        chromosomes.append(uniform(-BOUNDS, BOUNDS))
+    candidate = create_candidate(chromosomes)
     return candidate
 
 # Returns a single candidate, created from given chromosomes.
@@ -173,7 +179,8 @@ for i in range(GENS):
     population = tournament_selection(population)
     population = population + crossover(population)
     population = population + mutation(population)
-    reporter(population, i)
+    if i%50 == 0:
+        reporter(population, i)
 
 # custom_gen = [-0.00318,5000,5,-62,1,-0.001]
 # print(custom_gen, calculate_fitness(custom_gen))
