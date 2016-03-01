@@ -4,14 +4,12 @@ from sys import stdout
 from time import time
 
 # POP_LIMIT / TOURNAMENT_LIMIT must be an even number for crossover!
-GENS = 10000
-POP_LIMIT = 120
+GENS = 100000
+POP_LIMIT = 240
 TOURNAMENT_LIMIT = 4 # MUST be 4 or higher
 BOUNDS = 5000.0
-INITIAL_MUTATION_FACTOR = 0.05
-SECONDARY_MUTATION_CHANCE = 10
-SECONDARY_MUTATION_FACTOR = 1.2
-CRAZY_MUTATION_CHANCE = 5
+UNIFORM_MUTATION_CHANCE = 5
+BOUNDARY_MUTATION_CHANCE = 2
 
 #  Create report file
 timestamp = time()
@@ -19,11 +17,7 @@ f = open(str(timestamp) + '.csv','w')
 f.write('POP_LIMIT: ' + str(POP_LIMIT) + '\n')
 f.write('TOURNAMENT_LIMIT: ' + str(TOURNAMENT_LIMIT) + '\n')
 f.write('BOUNDS: ' + str(BOUNDS) + '\n')
-f.write('INITIAL_MUTATION_FACTOR: ' + str(INITIAL_MUTATION_FACTOR) + '\n')
-f.write('SECONDARY_MUTATION_CHANCE: ' + str(SECONDARY_MUTATION_CHANCE) + '\n')
-f.write('SECONDARY_MUTATION_FACTOR: ' + str(SECONDARY_MUTATION_FACTOR) + '\n')
-f.write('CRAZY_MUTATION_CHANCE: ' + str(CRAZY_MUTATION_CHANCE) + '\n\n')
-f.write('Generation, Best Fitness, Worst Fitness, Average Fitness, Best Chromosomes\n')
+f.write('Generation, Best, Worst, Average, Best Chromosomes\n')
 f.close()
 
 # Open data file
@@ -45,7 +39,7 @@ def calculate_y_values(candidate):
     return y_values
 
 # A function that implements the Horner Scheme for evaluating a
-# polynomial of coefficients *polynomial in x.
+# polynomial of coefficients polynomial in x. Uses reversed array.
 def horner(x, polynomial):
     result = 0
     for coefficient in polynomial:
@@ -58,9 +52,9 @@ def calculate_fitness(candidate):
     fitness = 0
     cand_y_values = calculate_y_values(candidate)
     for index, val in enumerate(cand_y_values):
-        point_fitness = sqrt((Y_DATA[index] - val)**2)
-        fitness += point_fitness
-    fitness = 1 / fitness
+        error = sqrt((Y_DATA[index] - val)**2)
+        fitness += error
+    fitness = 1 / (fitness + 1)
     return fitness
 
 # Returns a single candidate.
@@ -112,7 +106,7 @@ def tournament_selection(population):
 # Combines the chromosomes of two parents in one of two ways. Returns a new population of offspring.
 def crossover(population):
     offspring = []
-    for i in range(len(population)/2):
+    for i in range(int(len(population)/2)):
         parent_1 = population[2*i]
         parent_2 = population[2*i+1]
         child_1_chromosomes = []
@@ -137,16 +131,18 @@ def mutation(population):
     mutants = []
     for candidate in population:
         mutant_chromosomes = candidate['chromosomes']
+        # Non-Uniform Mutation
         rand_index = randint(0,5)
-        mutate_amount = shrink_or_grow() * INITIAL_MUTATION_FACTOR * mutant_chromosomes[rand_index]
-        mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + mutate_amount
-        if randint(1, 100) <= SECONDARY_MUTATION_CHANCE:
+        mutation_factor = uniform(0.05, 0.5)
+        mutation_amount = mutation_factor * mutant_chromosomes[rand_index]
+        mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + shrink_or_grow() * mutation_amount
+        # Uniform Mutation
+        if randint(0,100) < UNIFORM_MUTATION_CHANCE:
             rand_index = randint(0,5)
-            mutate_amount = shrink_or_grow() * SECONDARY_MUTATION_FACTOR * mutant_chromosomes[rand_index]
-            mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + mutate_amount
-        if randint(1, 100) <= CRAZY_MUTATION_CHANCE:
+            mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + uniform(-BOUNDS/4, BOUNDS/4)
+        if randint(0,100) < BOUNDARY_MUTATION_CHANCE:
             rand_index = randint(0,5)
-            mutant_chromosomes[rand_index] = uniform(-BOUNDS, BOUNDS)
+            mutant_chromosomes[rand_index] = shrink_or_grow() * BOUNDS
         mutants.append(create_candidate(mutant_chromosomes))
     return mutants
 
@@ -175,12 +171,18 @@ def reporter(population, gen):
 # Create initial population
 population = generate_population()
 # Loops through the selection, crossover and mutation phases for given number of genereations.
-for i in range(GENS):
+for i in range(GENS+1):#
+    if i == 3000:
+        TOURNAMENT_LIMIT = 5
+    if i == 6000:
+        TOURNAMENT_LIMIT = 6
+    if i == 10000:
+        TOURNAMENT_LIMIT = 10
     population = tournament_selection(population)
     population = population + crossover(population)
     population = population + mutation(population)
-    if i%50 == 0:
+    if i%100 == 0:
         reporter(population, i)
 
-# custom_gen = [-0.00318,5000,5,-62,1,-0.001]
-# print(custom_gen, calculate_fitness(custom_gen))
+# custom_gen = {'chromosomes':[-0.001, 1, -62, 5, 5000, -0.00318]}
+# print(calculate_fitness(custom_gen))
