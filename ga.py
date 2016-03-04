@@ -4,12 +4,14 @@ from sys import stdout
 from time import time
 
 # POP_LIMIT / TOURNAMENT_LIMIT must be an even number for crossover!
-GENS = 100000
-POP_LIMIT = 240
-TOURNAMENT_LIMIT = 4 # MUST be 4 or higher
-BOUNDS = 5000.0
-UNIFORM_MUTATION_CHANCE = 5
-BOUNDARY_MUTATION_CHANCE = 2
+GENS = 100000000
+POP_LIMIT = 100
+TOURNAMENT_LIMIT = 4
+BOUNDS = [0.2, 10000, 1000, 100, 10, 1]
+MUTATION_RATE = 0.05
+UNIFORM_MUTATION_RATE = 0.005
+ROUND_MUTATION_RATE = 0.005
+ELITISM = True
 
 #  Create report file
 timestamp = time()
@@ -30,45 +32,34 @@ data_file.close()
 X_DATA = data[::2] # even values are x coordinates
 Y_DATA = data[1::2] # odd values are y coordinates
 
-# Returns f(x) values for a given candidate. Used in fitness calculation.
-def calculate_y_values(candidate):
+# Compares calculated f(x) values to the actual ones.
+# Implements the Horner Method for evaluating a polynomial.
+# Returns the fitness for a given candidate, 1 is best.
+def calculate_fitness(chromosomes):
     y_values = []
     for x in X_DATA:
-        y = horner(x, candidate['chromosomes'])
+        y = 0
+        for coefficient in chromosomes[::-1]:
+            y = y * x + coefficient
         y_values.append(y)
-    return y_values
-
-# A function that implements the Horner Scheme for evaluating a
-# polynomial of coefficients polynomial in x. Uses reversed array.
-def horner(x, polynomial):
-    result = 0
-    for coefficient in polynomial:
-        result = result * x + coefficient
-    return result
-
-# Returns the fitness for a given candidate, higher is better.
-# Compares calculated f(x) values to the actual ones.
-def calculate_fitness(candidate):
-    fitness = 0
-    cand_y_values = calculate_y_values(candidate)
-    for index, val in enumerate(cand_y_values):
+    fit = 0
+    for index, val in enumerate(y_values):
         error = sqrt((Y_DATA[index] - val)**2)
-        fitness += error
-    fitness = 1 / (fitness + 1)
-    return fitness
+        fit += error
+    return 1 / (fit + 1)
 
 # Returns a single candidate.
 def generate_candidate():
     chromosomes = []
     for i in range(6):
-        chromosomes.append(uniform(-BOUNDS, BOUNDS))
+        chromosomes.append(uniform(-BOUNDS[i], BOUNDS[i]))
     candidate = create_candidate(chromosomes)
     return candidate
 
 # Returns a single candidate, created from given chromosomes.
 def create_candidate(chromosomes):
     candidate = {'chromosomes': chromosomes, 'fitness': 0}
-    candidate['fitness'] = calculate_fitness(candidate)
+    candidate['fitness'] = calculate_fitness(candidate['chromosomes'])
     return candidate
 
 # Returns an entire population, used at the start.
@@ -78,73 +69,55 @@ def generate_population():
         population.append(generate_candidate())
     return population
 
+def get_fittest(population):
+    fittest = {'fitness': 0}
+    for candidate in population:
+        if candidate['fitness'] > fittest['fitness']:
+            fittest = candidate
+    return fittest
+
 # Randomly matches up a tournament and selects the winner. Returns a reduced population (0.25).
 def tournament_selection(population):
-    new_population = []
-    round_1 = population
-    round_2 = []
-    # Round 1 selects only the fittest. All combatants compete at least once.
-    while(len(round_1) > 0):
-        tournament = sample(round_1, TOURNAMENT_LIMIT)
-        winner = {'fitness': 0}
-        for combatant in tournament:
-            if combatant['fitness'] > winner['fitness']:
-                winner = combatant
-            round_2.append(combatant)
-            round_1.remove(combatant)
-        new_population.append(winner)
-    # Round 2 fills remaining slots with winners from randomly selected bouts (only used if TOURNAMENT_LIMIT > 4)
-    while(len(new_population) < POP_LIMIT/4):
-        tournament = sample(round_2, TOURNAMENT_LIMIT)
-        winner = {'fitness': 0}
-        for combatant in tournament:
-            if combatant['fitness'] > winner['fitness']:
-                winner = combatant
-        new_population.append(winner)
-    return new_population
+    tournament = sample(population, TOURNAMENT_LIMIT)
+    return get_fittest(tournament)
 
 # Combines the chromosomes of two parents in one of two ways. Returns a new population of offspring.
-def crossover(population):
-    offspring = []
-    for i in range(int(len(population)/2)):
-        parent_1 = population[2*i]
-        parent_2 = population[2*i+1]
-        child_1_chromosomes = []
-        child_2_chromosomes = []
+def crossover(parent_1, parent_2):
+    offspring_chromosomes = []
+    for i in range(0,6):
         if randint(0,1) == 0:
-            child_1_chromosomes = parent_1['chromosomes'][:3] + parent_2['chromosomes'][-3:]
-            child_2_chromosomes = parent_2['chromosomes'][:3] + parent_1['chromosomes'][-3:]
+            offspring_chromosomes.append(parent_1['chromosomes'][i])
         else:
-            child_1_chromosomes = [parent_1['chromosomes'][0], parent_2['chromosomes'][1],parent_1['chromosomes'][2], parent_2['chromosomes'][3], parent_1['chromosomes'][4], parent_2['chromosomes'][5]]
-            child_2_chromosomes = [parent_2['chromosomes'][0], parent_1['chromosomes'][1], parent_2['chromosomes'][2], parent_1['chromosomes'][3], parent_2['chromosomes'][4], parent_1['chromosomes'][5]]
-        offspring = offspring + [create_candidate(child_1_chromosomes), create_candidate(child_2_chromosomes)]
-    return offspring
-
-# Randomely return 1 or -1. Used to determine whether mutation increases or decreases values.
-def shrink_or_grow():
-    if randint(0,1) == 0:
-        return -1
-    return 1
+            offspring_chromosomes.append(parent_2['chromosomes'][i])
+    return offspring_chromosomes
 
 # Mutates at least one chromosome in each candidate. Returns a population of mutated candidates.
-def mutation(population):
-    mutants = []
-    for candidate in population:
-        mutant_chromosomes = candidate['chromosomes']
-        # Non-Uniform Mutation
-        rand_index = randint(0,5)
-        mutation_factor = uniform(0.05, 0.5)
-        mutation_amount = mutation_factor * mutant_chromosomes[rand_index]
-        mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + shrink_or_grow() * mutation_amount
-        # Uniform Mutation
-        if randint(0,100) < UNIFORM_MUTATION_CHANCE:
-            rand_index = randint(0,5)
-            mutant_chromosomes[rand_index] = mutant_chromosomes[rand_index] + uniform(-BOUNDS/4, BOUNDS/4)
-        if randint(0,100) < BOUNDARY_MUTATION_CHANCE:
-            rand_index = randint(0,5)
-            mutant_chromosomes[rand_index] = shrink_or_grow() * BOUNDS
-        mutants.append(create_candidate(mutant_chromosomes))
-    return mutants
+def mutate(chromosomes):
+    for i in range(len(chromosomes)):
+        if uniform(0,1) < UNIFORM_MUTATION_RATE:
+            chromosomes[i] = uniform(-BOUNDS[i], BOUNDS[i])
+        if uniform(0,1) < MUTATION_RATE:
+            mutation_factor = uniform(-0.1, 0.1)
+            chromosomes[i] = chromosomes[i] + mutation_factor * chromosomes[i]
+        if uniform(0,1) < ROUND_MUTATION_RATE:
+            chromosomes[i] = round(chromosomes[i], randint(1,5))
+    return chromosomes
+
+def evolve_population(population):
+    new_population = []
+    # Keep the best candidate from previous generation if ELITISM == True
+    elitism_offset = 0
+    if ELITISM:
+        new_population.append(get_fittest(population))
+        elitism_offset = 1
+    # Crossover population
+    for i in range(elitism_offset, POP_LIMIT):
+        parent_1 = tournament_selection(population)
+        parent_2 = tournament_selection(population)
+        # and mutate the offspring
+        offspring_chromosomes = mutate(crossover(parent_1, parent_2))
+        new_population.append(create_candidate(offspring_chromosomes))
+    return new_population
 
 # Writes to the report file for the given population updates the stdout.
 def reporter(population, gen):
@@ -165,24 +138,36 @@ def reporter(population, gen):
     f.write(str(average) + ', ')
     f.write(str(best['chromosomes']) + '\n')
     f.close()
-    stdout.write("Generation: %d, Best: %-10.20f \r" % (i, best['fitness']) )
+    stdout.write("Generation: %d, Best: %-10.20f \r" % (i, best['fitness']))
     stdout.flush()
+
+# population = generate_population()
+# print('BEFORE ', population)
+# population = evolve_population(population)
+# print('AFTER ',population)
 
 # Create initial population
 population = generate_population()
 # Loops through the selection, crossover and mutation phases for given number of genereations.
 for i in range(GENS+1):#
-    if i == 3000:
+    population = evolve_population(population)
+    if i == 50000:
         TOURNAMENT_LIMIT = 5
-    if i == 6000:
+        ROUND_MUTATION_RATE = 0.01
+    if i == 100000:
         TOURNAMENT_LIMIT = 6
-    if i == 10000:
+        ROUND_MUTATION_RATE = 0.02
+    if i == 500000:
+        TOURNAMENT_LIMIT = 8
+        UNIFORM_MUTATION_RATE = 0.01
+        ROUND_MUTATION_RATE = 0.03
+    if i == 1000000:
         TOURNAMENT_LIMIT = 10
-    population = tournament_selection(population)
-    population = population + crossover(population)
-    population = population + mutation(population)
+        MUTATION_RATE = 0.8
+        UNIFORM_MUTATION_RATE = 0.02
+        ROUND_MUTATION_RATE = 0.05
     if i%100 == 0:
         reporter(population, i)
 
-# custom_gen = {'chromosomes':[-0.001, 1, -62, 5, 5000, -0.00318]}
+# custom_gen = {'chromosomes':[-0.00318, 5000, 5, -62, -0.001]}
 # print(calculate_fitness(custom_gen))
