@@ -1,0 +1,24 @@
+#BlueJ class context
+comment0.params=datX\ datY
+comment0.target=Individual(double[],\ double[])
+comment0.text=\r\n\ Constructor\ for\ objects\ of\ class\ Individual\r\n
+comment1.params=
+comment1.target=void\ baseGenes()
+comment2.params=
+comment2.target=double\ getFitnessValue()
+comment3.params=fitnessValue
+comment3.target=void\ setFitnessValue(double)
+comment4.params=index
+comment4.target=double\ getGene(int)
+comment5.params=index\ gene
+comment5.target=void\ setGene(int,\ double)
+comment6.params=factor
+comment6.target=void\ rapidMutate(java.lang.Integer)
+comment6.text=\r\n\ Mutate\ needs\ to\ select\ a\ gene\ at\ random\r\n\ depending\ on\ gene\ index\ (case)\ mutate\ to\ power^10\r\n\ 0\ \=\ 0.00001\ ->\ 10,000\r\n\ 1\ \=\ 0.00001\ ->\ 1,000\r\n\ 2\ \=\ 0.00001\ ->\ 100\r\n\ 3\ \=\ 0.00001\ ->\ 10\r\n\ 4\ \=\ 0.00001\ ->\ 1\r\n\ 5\ \=\ 0.00001\ ->\ 0.1\r\n
+comment7.params=factor
+comment7.target=void\ mutate(java.lang.Integer)
+comment8.params=c\ x
+comment8.target=double\ evalpoly(double[],\ double)
+comment9.params=datX\ datY
+comment9.target=void\ calcFitness(double[],\ double[])
+numComments=10
